@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "541726631247",
+    "project_id": "database-app-dec41",
+    "storage_bucket": "database-app-dec41.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:541726631247:android:d96b5b697d17ded58c913a",
+        "android_client_info": {
+          "package_name": "com.practice.databaseapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "541726631247-6dsfv49infrq802hpnoc6s5g8vjtm2hp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD16Yky_gFeqLxTAe9lE7rfyi-YivOR8sY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "541726631247-6dsfv49infrq802hpnoc6s5g8vjtm2hp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
