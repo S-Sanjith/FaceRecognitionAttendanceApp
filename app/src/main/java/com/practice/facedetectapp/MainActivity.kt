@@ -163,14 +163,14 @@ class MainActivity : AppCompatActivity() {
             //val size = display?.getRealSize(point)
             val imageAnalysis = ImageAnalysis.Builder()
                 .setTargetResolution(Size(point.x, point.y))
-                //.setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
 
             val highAccuracyOpts = FaceDetectorOptions.Builder()
                 //.setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
                 //.setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
                 //.setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
-                .enableTracking()
+                //.enableTracking()
                 .build()
 
             val objectDetector = FaceDetection.getClient(highAccuracyOpts)
@@ -180,6 +180,18 @@ class MainActivity : AppCompatActivity() {
 
                 val scaleX = viewBinding.viewFinder.width.toFloat() / imageProxy.height.toFloat()
                 val scaleY = viewBinding.viewFinder.height.toFloat() / imageProxy.width.toFloat()
+
+//                val scaleX = viewBinding.viewFinder.width.toFloat() / imageProxy.height.toFloat()
+//                val scaleY = viewBinding.viewFinder.height.toFloat() / imageProxy.width.toFloat()
+//                val r: Rect = Rect()
+//                val width = viewBinding.viewFinder.width
+//                r.left = width + 20
+//                r.right = width - 20
+//                r.top
+//
+                val element =
+                    Draw(this, Rect(), "", (1).toFloat(), (1).toFloat())
+                viewBinding.layout.addView(element, 1)
 
                 val rotationDegrees = imageProxy.imageInfo.rotationDegrees
                 val image = imageProxy.image
@@ -191,6 +203,10 @@ class MainActivity : AppCompatActivity() {
                             imageProxy.close()
                         }.addOnSuccessListener { objects ->
                             // Here, we get a list of objects which are detected.
+                            if(objects.isEmpty())
+                                viewBinding.faceDetectStatus.text = "No face detected"
+                            else
+                                viewBinding.faceDetectStatus.text = "Face detected"
                             for (it in objects) {
                                 // val detectedFace = it.boundingBox
                                 // Bitmap faceBmp = Bitmap.createBitmap()
@@ -205,9 +221,9 @@ class MainActivity : AppCompatActivity() {
                                     r.right = rc
                                 }
 
-                                val element =
-                                    Draw(this, r, it.trackingId.toString(), scaleX, scaleY)
-                                viewBinding.layout.addView(element, 1)
+//                                val element =
+//                                    Draw(this, r, "", scaleX, scaleY)
+//                                viewBinding.layout.addView(element, 1)
 
                             }
                             //imageProxy.close()
@@ -345,8 +361,9 @@ class Draw(context: Context?, private var rect: Rect, private var text: String, 
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.drawText(text, rect.centerX().toFloat(), rect.centerY().toFloat(), textPaint)
-        canvas.drawRect(( rect.left.toFloat()*_scaleX)-50, rect.top.toFloat()*_scaleY - 50, (rect.right.toFloat()*_scaleX)+50, rect.bottom.toFloat()*_scaleY + 50, paint)
+//        canvas.drawText(text, rect.centerX().toFloat(), rect.centerY().toFloat(), textPaint)
+//        canvas.drawRect(( rect.left.toFloat()*_scaleX)-50, rect.top.toFloat()*_scaleY - 50, (rect.right.toFloat()*_scaleX)+50, rect.bottom.toFloat()*_scaleY + 50, paint)
+        canvas.drawRect( (50).toFloat(), (150).toFloat(), (width-50).toFloat(), (150+(width-100)).toFloat(), paint)
     }
 }
 
