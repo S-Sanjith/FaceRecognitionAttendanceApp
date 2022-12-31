@@ -207,25 +207,26 @@ class MainActivity : AppCompatActivity() {
                                 viewBinding.faceDetectStatus.text = "No face detected"
                             else
                                 viewBinding.faceDetectStatus.text = "Face detected"
-                            for (it in objects) {
+
+//                            for (it in objects) {
                                 // val detectedFace = it.boundingBox
                                 // Bitmap faceBmp = Bitmap.createBitmap()
-                                if (viewBinding.layout.childCount > 1) viewBinding.layout.removeViewAt(
-                                    1
-                                )
-                                val r = it.boundingBox
-                                if(cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
-                                    val rc = viewBinding.viewFinder.width - r.left
-                                    val lc = viewBinding.viewFinder.width - r.right
-                                    r.left = lc
-                                    r.right = rc
-                                }
+//                                if (viewBinding.layout.childCount > 1) viewBinding.layout.removeViewAt(
+//                                    1
+//                                )
+//                                val r = it.boundingBox
+//                                if(cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
+//                                    val rc = viewBinding.viewFinder.width - r.left
+//                                    val lc = viewBinding.viewFinder.width - r.right
+//                                    r.left = lc
+//                                    r.right = rc
+//                                }
 
 //                                val element =
 //                                    Draw(this, r, "", scaleX, scaleY)
 //                                viewBinding.layout.addView(element, 1)
 
-                            }
+//                            }
                             //imageProxy.close()
                         }
                         .addOnCompleteListener {
