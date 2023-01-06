@@ -50,8 +50,8 @@ class AddClassDetailsActivity : AppCompatActivity() {
         val submit = findViewById<Button>(R.id.submit_id)
 
         binding.submitId.setOnClickListener {
-            Intent(this, ProfileActivity::class.java).also {
-                database = FirebaseDatabase.getInstance("https://attendanceusingfacerecognition-default-rtdb.asia-southeast1.firebasedatabase.app").getReference("Users")
+            Intent(this, MainActivity::class.java).also {
+                database = FirebaseDatabase.getInstance("https://attendanceusingfacerecog-52ca1-default-rtdb.asia-southeast1.firebasedatabase.app").getReference("Users")
                 val user = User(name, mail, password, dept)
 
                 if (name != null) {

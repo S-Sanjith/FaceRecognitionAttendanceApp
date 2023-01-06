@@ -34,34 +34,34 @@
 
     <TextView
         android:id="@+id/Name_id"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="48dp"
+        android:layout_height="41dp"
         android:text="Name"
         android:textAlignment="textEnd"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.117"
+        app:layout_constraintHorizontal_bias="0.088"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/imageView"
-        app:layout_constraintVertical_bias="0.23" />
+        app:layout_constraintVertical_bias="0.221" />
 
     <TextView
         android:id="@+id/Mail_id"
         android:layout_width="35dp"
-        android:layout_height="26dp"
+        android:layout_height="43dp"
         android:text="Mail"
         android:textAlignment="textEnd"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/Mail_display_id"
-        app:layout_constraintHorizontal_bias="0.807"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.119"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/Name_display_id"
-        app:layout_constraintVertical_bias="0.118" />
+        app:layout_constraintVertical_bias="0.093" />
 
     <TextView
         android:id="@+id/Dept_id"
         android:layout_width="84dp"
-        android:layout_height="24dp"
+        android:layout_height="40dp"
         android:text="Department"
         android:textAlignment="textEnd"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -69,7 +69,7 @@
         app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/Mail_display_id"
-        app:layout_constraintVertical_bias="0.182" />
+        app:layout_constraintVertical_bias="0.201" />
 
     <TextView
         android:id="@+id/Name_display_id"
@@ -88,10 +88,10 @@
         android:layout_height="43dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.657"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintHorizontal_bias="0.183"
+        app:layout_constraintStart_toEndOf="@+id/Mail_id"
         app:layout_constraintTop_toBottomOf="@+id/Name_display_id"
-        app:layout_constraintVertical_bias="0.096" />
+        app:layout_constraintVertical_bias="0.093" />
 
     <TextView
         android:id="@+id/dept_display_id"
@@ -105,14 +105,16 @@
         app:layout_constraintTop_toBottomOf="@+id/Mail_display_id"
         app:layout_constraintVertical_bias="0.056" />
 
-    <ImageView
-        android:id="@+id/imageView2"
+    <Button
+        android:id="@+id/chooseClsBtn"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="124dp"
-        android:layout_marginTop="16dp"
+        android:text="Choose Class"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/dept_display_id"
-        tools:srcCompat="@tools:sample/avatars" />
+        app:layout_constraintVertical_bias="0.444" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

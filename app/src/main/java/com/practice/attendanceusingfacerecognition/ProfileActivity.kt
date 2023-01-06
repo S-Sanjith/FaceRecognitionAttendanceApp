@@ -1,7 +1,9 @@
 package com.practice.attendanceusingfacerecognition
 
+import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.widget.Button
 import android.widget.TextView
 
 class ProfileActivity : AppCompatActivity() {
@@ -20,6 +22,12 @@ class ProfileActivity : AppCompatActivity() {
         val dept= intent.getStringExtra("EXTRA_MESSAGE5")
         findViewById<TextView>(R.id.dept_display_id).apply {
             text = dept
+        }
+
+        findViewById<Button>(R.id.chooseClsBtn).setOnClickListener {
+            Intent(this,ChooseClassActivity::class.java).also {
+                startActivity(it)
+            }
         }
 
     }
