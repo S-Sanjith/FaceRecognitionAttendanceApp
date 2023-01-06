@@ -36,59 +36,69 @@
         android:id="@+id/Name_id"
         android:layout_width="48dp"
         android:layout_height="41dp"
-        android:text="Name"
-        android:textAlignment="textEnd"
+        android:text="Name:"
+        android:textAlignment="center"
+        android:textColor="@color/black"
+        android:textSize="16sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.088"
+        app:layout_constraintHorizontal_bias="0.132"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/imageView"
-        app:layout_constraintVertical_bias="0.221" />
+        app:layout_constraintVertical_bias="0.222" />
 
     <TextView
         android:id="@+id/Mail_id"
         android:layout_width="35dp"
         android:layout_height="43dp"
-        android:text="Mail"
-        android:textAlignment="textEnd"
+        android:text="Mail:"
+        android:textAlignment="center"
+        android:textColor="@color/black"
+        android:textSize="16sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.119"
+        app:layout_constraintHorizontal_bias="0.17"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/Name_display_id"
         app:layout_constraintVertical_bias="0.093" />
 
     <TextView
         android:id="@+id/Dept_id"
-        android:layout_width="84dp"
-        android:layout_height="40dp"
-        android:text="Department"
-        android:textAlignment="textEnd"
+        android:layout_width="99dp"
+        android:layout_height="46dp"
+        android:text="Department:"
+        android:textAlignment="center"
+        android:textColor="@color/black"
+        android:textSize="16sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/Mail_display_id"
-        app:layout_constraintVertical_bias="0.201" />
+        app:layout_constraintVertical_bias="0.157" />
 
     <TextView
         android:id="@+id/Name_display_id"
         android:layout_width="267dp"
         android:layout_height="41dp"
+        android:textAlignment="center"
+        android:textSize="16sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.174"
+        app:layout_constraintHorizontal_bias="0.593"
         app:layout_constraintStart_toEndOf="@+id/Name_id"
         app:layout_constraintTop_toBottomOf="@+id/imageView"
-        app:layout_constraintVertical_bias="0.221" />
+        app:layout_constraintVertical_bias="0.222" />
 
     <TextView
         android:id="@+id/Mail_display_id"
         android:layout_width="271dp"
         android:layout_height="43dp"
+        android:textAlignment="center"
+        android:textSize="16sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.183"
+        app:layout_constraintHorizontal_bias="0.633"
         app:layout_constraintStart_toEndOf="@+id/Mail_id"
         app:layout_constraintTop_toBottomOf="@+id/Name_display_id"
         app:layout_constraintVertical_bias="0.093" />
@@ -96,14 +106,15 @@
     <TextView
         android:id="@+id/dept_display_id"
         android:layout_width="267dp"
-        android:layout_height="40dp"
-        android:layout_marginTop="28dp"
+        android:layout_height="46dp"
+        android:textAlignment="center"
+        android:textSize="16sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.174"
+        app:layout_constraintHorizontal_bias="0.577"
         app:layout_constraintStart_toEndOf="@+id/Dept_id"
         app:layout_constraintTop_toBottomOf="@+id/Mail_display_id"
-        app:layout_constraintVertical_bias="0.056" />
+        app:layout_constraintVertical_bias="0.157" />
 
     <Button
         android:id="@+id/chooseClsBtn"
