@@ -15,6 +15,7 @@ import android.util.Log
 import android.util.Size
 import android.view.View
 import android.view.WindowInsets
+import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -78,6 +79,7 @@ class CameraActivity : AppCompatActivity() {
     companion object {
 
         lateinit var logTextView : TextView
+        var names: ArrayList<String> = ArrayList()
 
         fun setMessage( message : String ) {
             logTextView.text = message
@@ -111,6 +113,17 @@ class CameraActivity : AppCompatActivity() {
         faceNetModel = FaceNetModel( this , modelInfo , useGpu , useXNNPack )
         frameAnalyser = FrameAnalyser( this , boundingBoxOverlay , faceNetModel )
         fileReader = FileReader( faceNetModel )
+
+
+        val submitButton = findViewById<Button>(R.id.submitBtn)
+        submitButton.setOnClickListener{
+            val intent = Intent(this,SecondActivity::class.java)
+//            val attendance = AttendanceStatus("Hi")
+//            val json = gson?.toJson(attendance)
+//            intent.putExtra("USER",names)
+            startActivity(intent)
+
+        }
 
 
         // We'll only require the CAMERA permission from the user.
