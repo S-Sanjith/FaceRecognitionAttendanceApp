@@ -10,7 +10,7 @@
         android:id="@+id/class_details_id"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Class Details"
+        android:text="Enter Your Class Details"
         android:textSize="20sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

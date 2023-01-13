@@ -1,461 +1,352 @@
 package com.practice.attendanceusingfacerecognition
 
 import android.Manifest
-import android.annotation.SuppressLint
-import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.graphics.*
+import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.MediaStore
+import android.provider.DocumentsContract
+import android.text.method.ScrollingMovementMethod
 import android.util.Log
 import android.util.Size
 import android.view.View
+import android.view.WindowInsets
+import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.*
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.face.FaceDetection
-import com.google.mlkit.vision.face.FaceDetectorOptions
+import androidx.documentfile.provider.DocumentFile
+import androidx.exifinterface.media.ExifInterface
+import androidx.lifecycle.LifecycleOwner
+import com.google.common.util.concurrent.ListenableFuture
+import com.practice.attendanceusingfacerecognition.model.FaceNetModel
+import com.practice.attendanceusingfacerecognition.model.Models
+import com.practice.attendanceusingfacerecognition.FrameAnalyser
 import com.practice.attendanceusingfacerecognition.databinding.ActivityCameraBinding
-import java.text.SimpleDateFormat
-import java.util.*
-import java.util.concurrent.ExecutorService
+import java.io.*
 import java.util.concurrent.Executors
+
 
 class CameraActivity : AppCompatActivity() {
 
-    private lateinit var viewBinding: ActivityCameraBinding
+    private var isSerializedDataStored = false
 
-    private var imageCapture: ImageCapture? = null
+    // Serialized data will be stored ( in app's private storage ) with this filename.
+    private val SERIALIZED_DATA_FILENAME = "image_data"
 
-    // private var videoCapture: VideoCapture<Recorder>? = null
-    // private var recording: Recording? = null
+    // Shared Pref key to check if the data was stored.
+    private val SHARED_PREF_IS_DATA_STORED_KEY = "is_data_stored"
 
-    private lateinit var cameraExecutor: ExecutorService
+    private lateinit var activityMainBinding : ActivityCameraBinding
+    private lateinit var previewView : PreviewView
+    private lateinit var frameAnalyser  : FrameAnalyser
+    private lateinit var faceNetModel : FaceNetModel
+    private lateinit var fileReader : FileReader
+    private lateinit var cameraProviderFuture : ListenableFuture<ProcessCameraProvider>
+    private lateinit var sharedPreferences: SharedPreferences
+
+    // <----------------------- User controls --------------------------->
+
+    // Use the device's GPU to perform faster computations.
+    // Refer https://www.tensorflow.org/lite/performance/gpu
+    private val useGpu = true
+
+    // Use XNNPack to accelerate inference.
+    // Refer https://blog.tensorflow.org/2020/07/accelerating-tensorflow-lite-xnnpack-integration.html
+    private val useXNNPack = true
+
+    // You may the change the models here.
+    // Use the model configs in Models.kt
+    // Default is Models.FACENET ; Quantized models are faster
+    private val modelInfo = Models.FACENET
+
+    // <---------------------------------------------------------------->
+
+
+    companion object {
+
+        lateinit var logTextView : TextView
+
+        fun setMessage( message : String ) {
+            logTextView.text = message
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewBinding = ActivityCameraBinding.inflate(layoutInflater)
-        setContentView(viewBinding.root)
 
-        // Request camera permissions
-        if (allPermissionsGranted()) {
-            startCamera()
-        } else {
-            ActivityCompat.requestPermissions(
-                this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
+        // Remove the status bar to have a full screen experience
+        // See this answer on SO -> https://stackoverflow.com/a/68152688/10878733
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.decorView.windowInsetsController!!
+                .hide( WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
         }
-        /*
-        fixedRateTimer("timer", false, 0L, 2000) {
-            this@MainActivity.runOnUiThread {
-                if(QrAnalyzer.S != "") {
-                    Toast.makeText(baseContext, QrAnalyzer.S, Toast.LENGTH_SHORT).show()
-                    QrAnalyzer.S = ""
+        else {
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN
+        }
+        Toast.makeText(this, "", Toast.LENGTH_SHORT).show()
+        activityMainBinding = ActivityCameraBinding.inflate( layoutInflater )
+        setContentView( activityMainBinding.root )
+
+        previewView = activityMainBinding.previewView
+        logTextView = activityMainBinding.logTextview
+        logTextView.movementMethod = ScrollingMovementMethod()
+        // Necessary to keep the Overlay above the PreviewView so that the boxes are visible.
+        val boundingBoxOverlay = activityMainBinding.bboxOverlay
+        boundingBoxOverlay.setWillNotDraw( false )
+        boundingBoxOverlay.setZOrderOnTop( true )
+
+        faceNetModel = FaceNetModel( this , modelInfo , useGpu , useXNNPack )
+        frameAnalyser = FrameAnalyser( this , boundingBoxOverlay , faceNetModel )
+        fileReader = FileReader( faceNetModel )
+
+
+        // We'll only require the CAMERA permission from the user.
+        // For scoped storage, particularly for accessing documents, we won't require WRITE_EXTERNAL_STORAGE or
+        // READ_EXTERNAL_STORAGE permissions. See https://developer.android.com/training/data-storage
+        if ( ActivityCompat.checkSelfPermission( this , Manifest.permission.CAMERA ) != PackageManager.PERMISSION_GRANTED ) {
+            requestCameraPermission()
+        }
+        else {
+            startCameraPreview()
+        }
+
+        sharedPreferences = getSharedPreferences( getString( R.string.app_name ) , Context.MODE_PRIVATE )
+        isSerializedDataStored = sharedPreferences.getBoolean( SHARED_PREF_IS_DATA_STORED_KEY , false )
+        if ( !isSerializedDataStored ) {
+//            Logger.log( "No serialized data was found. Select the images directory.")
+            showSelectDirectoryDialog()
+        }
+        else {
+            val alertDialog = AlertDialog.Builder( this ).apply {
+                setTitle( "Serialized Data")
+                setMessage( "Existing image data was found on this device. Would you like to load it?" )
+                setCancelable( false )
+                setNegativeButton( "LOAD") { dialog, which ->
+                    dialog.dismiss()
+                    frameAnalyser.faceList = loadSerializedImageData()
+//                    Logger.log( "Serialized data loaded.")
                 }
-            }
-        }
-        */
-
-        /*
-        fixedRateTimer("timer", false, 0L, 2000) {
-            this@MainActivity.runOnUiThread {
-                if(FaceAnalyzer.S != "") {
-                    Toast.makeText(baseContext, FaceAnalyzer.S, Toast.LENGTH_SHORT).show()
-                    FaceAnalyzer.S = ""
+                setPositiveButton( "RESCAN") { dialog, which ->
+                    dialog.dismiss()
+                    launchChooseDirectoryIntent()
                 }
+                create()
             }
+            alertDialog.show()
         }
-        */
 
-        // Set up the listeners for take photo and video capture buttons
-        viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
-        viewBinding.videoCaptureButton.setOnClickListener { captureVideo() }
-
-        cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
-    private fun takePhoto() {
-        // Get a stable reference of the modifiable image capture use case
-        val imageCapture = imageCapture ?: return
+    // ---------------------------------------------- //
 
-        // Create time stamped name and MediaStore entry.
-        val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
-            .format(System.currentTimeMillis())
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-Image")
-            }
-        }
-
-        // Create output options object which contains file + metadata
-        val outputOptions = ImageCapture.OutputFileOptions
-            .Builder(contentResolver,
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                contentValues)
-            .build()
-
-        // Set up image capture listener, which is triggered after photo has
-        // been taken
-        imageCapture.takePicture(
-            outputOptions,
-            ContextCompat.getMainExecutor(this),
-            object : ImageCapture.OnImageSavedCallback {
-                override fun onError(exc: ImageCaptureException) {
-                    Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
-                }
-
-                override fun
-                        onImageSaved(output: ImageCapture.OutputFileResults){
-                    val msg = "Photo capture succeeded: ${output.savedUri}"
-                    Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, msg)
-                }
-            }
-        )
-    }
-
-    private fun captureVideo() {}
-
-    @SuppressLint("UnsafeOptInUsageError")
-    private fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-
+    // Attach the camera stream to the PreviewView.
+    private fun startCameraPreview() {
+        cameraProviderFuture = ProcessCameraProvider.getInstance( this )
         cameraProviderFuture.addListener({
-            // Used to bind the lifecycle of cameras to the lifecycle owner
-            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+            val cameraProvider = cameraProviderFuture.get()
+            bindPreview(cameraProvider) },
+            ContextCompat.getMainExecutor(this) )
+    }
 
-            // Preview
-            val preview = Preview.Builder()
-                .build()
-                .also {
-                    it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
+    private fun bindPreview(cameraProvider : ProcessCameraProvider) {
+        val preview : Preview = Preview.Builder().build()
+        val cameraSelector : CameraSelector = CameraSelector.Builder()
+            .requireLensFacing( CameraSelector.LENS_FACING_FRONT )
+            .build()
+        preview.setSurfaceProvider( previewView.surfaceProvider )
+        val imageFrameAnalysis = ImageAnalysis.Builder()
+            .setTargetResolution(Size( 480, 640 ) )
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+        imageFrameAnalysis.setAnalyzer(Executors.newSingleThreadExecutor(), frameAnalyser )
+        cameraProvider.bindToLifecycle(this as LifecycleOwner, cameraSelector, preview , imageFrameAnalysis  )
+    }
+
+    // We let the system handle the requestCode. This doesn't require onRequestPermissionsResult and
+    // hence makes the code cleaner.
+    // See the official docs -> https://developer.android.com/training/permissions/requesting#request-permission
+    private fun requestCameraPermission() {
+        cameraPermissionLauncher.launch( Manifest.permission.CAMERA )
+    }
+
+    private val cameraPermissionLauncher = registerForActivityResult( ActivityResultContracts.RequestPermission() ) {
+            isGranted ->
+        if ( isGranted ) {
+            startCameraPreview()
+        }
+        else {
+            val alertDialog = AlertDialog.Builder( this ).apply {
+                setTitle( "Camera Permission")
+                setMessage( "The app couldn't function without the camera permission." )
+                setCancelable( false )
+                setPositiveButton( "ALLOW" ) { dialog, which ->
+                    dialog.dismiss()
+                    requestCameraPermission()
                 }
-
-            imageCapture = ImageCapture.Builder().build()
-
-            /*
-            val imageAnalyzer = ImageAnalysis.Builder()
-                .build()
-                .also {
-                    //it.setAnalyzer(cameraExecutor, QrAnalyzer { luma ->
-                    it.setAnalyzer(cameraExecutor, FaceAnalyzer { luma ->
-                        Log.d(TAG, "Average luminosity: $luma")
-                    })
+                setNegativeButton( "CLOSE" ) { dialog, which ->
+                    dialog.dismiss()
+                    finish()
                 }
-             */
+                create()
+            }
+            alertDialog.show()
+        }
 
-            // Select front camera as a default
-            //val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+    }
 
-            val point = Point()
-            //val size = display?.getRealSize(point)
-            val imageAnalysis = ImageAnalysis.Builder()
-                .setTargetResolution(Size(point.x, point.y))
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build()
 
-            val highAccuracyOpts = FaceDetectorOptions.Builder()
-                //.setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
-                //.setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
-                //.setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
-                //.enableTracking()
-                .build()
+    // ---------------------------------------------- //
 
-            val objectDetector = FaceDetection.getClient(highAccuracyOpts)
 
-            imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(this)) { imageProxy ->
-                //val im = getCorrectionMatrix(imageProxy, viewBinding.viewFinder)
+    // Open File chooser to choose the images directory.
+    private fun showSelectDirectoryDialog() {
+        val alertDialog = AlertDialog.Builder( this ).apply {
+            setTitle( "Select Images Directory")
+            setMessage( "As mentioned in the project\'s README file, please select a directory which contains the images." )
+            setCancelable( false )
+            setPositiveButton( "SELECT") { dialog, which ->
+                dialog.dismiss()
+                launchChooseDirectoryIntent()
+            }
+            create()
+        }
+        alertDialog.show()
+    }
 
-                val scaleX = viewBinding.viewFinder.width.toFloat() / imageProxy.height.toFloat()
-                val scaleY = viewBinding.viewFinder.height.toFloat() / imageProxy.width.toFloat()
 
-//                val scaleX = viewBinding.viewFinder.width.toFloat() / imageProxy.height.toFloat()
-//                val scaleY = viewBinding.viewFinder.height.toFloat() / imageProxy.width.toFloat()
-//                val r: Rect = Rect()
-//                val width = viewBinding.viewFinder.width
-//                r.left = width + 20
-//                r.right = width - 20
-//                r.top
-//
-                val element =
-                    Draw(this, Rect(), "", (1).toFloat(), (1).toFloat())
-                viewBinding.layout.addView(element, 1)
+    private fun launchChooseDirectoryIntent() {
+        val intent = Intent( Intent.ACTION_OPEN_DOCUMENT_TREE )
+        // startForActivityResult is deprecated.
+        // See this SO thread -> https://stackoverflow.com/questions/62671106/onactivityresult-method-is-deprecated-what-is-the-alternative
+        directoryAccessLauncher.launch( intent )
+    }
 
-                val rotationDegrees = imageProxy.imageInfo.rotationDegrees
-                val image = imageProxy.image
-                if (image != null) {
-                    val inputImage = InputImage.fromMediaImage(image, rotationDegrees)
-                    objectDetector
-                        .process(inputImage)
-                        .addOnFailureListener {
-                            imageProxy.close()
-                        }.addOnSuccessListener { objects ->
-                            // Here, we get a list of objects which are detected.
-                            if(objects.isEmpty())
-                                viewBinding.faceDetectStatus.text = "No face detected"
-                            else
-                                viewBinding.faceDetectStatus.text = "Face detected"
 
-//                            for (it in objects) {
-                            // val detectedFace = it.boundingBox
-                            // Bitmap faceBmp = Bitmap.createBitmap()
-//                                if (viewBinding.layout.childCount > 1) viewBinding.layout.removeViewAt(
-//                                    1
-//                                )
-//                                val r = it.boundingBox
-//                                if(cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
-//                                    val rc = viewBinding.viewFinder.width - r.left
-//                                    val lc = viewBinding.viewFinder.width - r.right
-//                                    r.left = lc
-//                                    r.right = rc
-//                                }
-
-//                                val element =
-//                                    Draw(this, r, "", scaleX, scaleY)
-//                                viewBinding.layout.addView(element, 1)
-
-//                            }
-                            //imageProxy.close()
+    // Read the contents of the select directory here.
+    // The system handles the request code here as well.
+    // See this SO question -> https://stackoverflow.com/questions/47941357/how-to-access-files-in-a-directory-given-a-content-uri
+    private val directoryAccessLauncher = registerForActivityResult( ActivityResultContracts.StartActivityForResult() ) {
+        val dirUri = it.data?.data ?: return@registerForActivityResult
+        Log.v("dir", dirUri.toString())
+        val childrenUri =
+            DocumentsContract.buildChildDocumentsUriUsingTree(
+                dirUri,
+                DocumentsContract.getTreeDocumentId( dirUri )
+            )
+        val tree = DocumentFile.fromTreeUri(this, childrenUri)
+        val images = ArrayList<Pair<String,Bitmap>>()
+        var errorFound = false
+        if ( tree!!.listFiles().isNotEmpty()) {
+            for ( doc in tree.listFiles() ) {
+                if ( doc.isDirectory && !errorFound ) {
+                    val name = doc.name!!
+                    for ( imageDocFile in doc.listFiles() ) {
+                        try {
+                            images.add( Pair( name , getFixedBitmap( imageDocFile.uri ) ) )
                         }
-                        .addOnCompleteListener {
-                            imageProxy.close()
+                        catch ( e : Exception ) {
+                            errorFound = true
+//                            Logger.log( "Could not parse an image in $name directory. Make sure that the file structure is " + "as described in the README of the project and then restart the app." )
+                            break
                         }
-                }
-            }
-
-            try {
-                // Unbind use cases before rebinding
-                cameraProvider.unbindAll()
-
-                // Bind use cases to camera
-                cameraProvider.bindToLifecycle(
-                    this, cameraSelector, preview, imageCapture, imageAnalysis)
-
-            } catch(exc: Exception) {
-                Log.e(TAG, "Use case binding failed", exc)
-            }
-        }, ContextCompat.getMainExecutor(this))
-    }
-
-    /*
-    private fun setFaceDetector(imageAnalysis: ImageAnalysis, lensFacing: Int) {
-        viewBinding.viewFinder.previewStreamState.observe(this, object: Observer<PreviewView.StreamState> {
-            override fun onChanged(streamState: PreviewView.StreamState?) {
-                if (streamState != PreviewView.StreamState.STREAMING) {
-                    return
-                }
-                val preview = viewBinding.viewFinder.getChildAt(0)
-                var width = preview.width * preview.scaleX
-                var height = preview.height * preview.scaleY
-                val rotation = preview.display.rotation
-                if (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270) {
-                    val temp = width
-                    width = height
-                    height = temp
-                }
-                imageAnalysis.setAnalyzer(
-                    executor,
-                    createFaceDetector(width.toInt(), height.toInt(), lensFacing)
-                )
-                viewBinding.viewFinder.previewStreamState.removeObserver(this)
-            }
-        })
-    }
-    private fun createFaceDetector(
-        viewfinderWidth: Int,
-        viewfinderHeight: Int,
-        lensFacing: Int
-    ): ImageAnalysis.Analyzer {
-        val isFrontLens = lensFacing == CameraSelector.LENS_FACING_FRONT
-        val faceDetector = FaceAnalyzer(viewfinderWidth, viewfinderHeight, isFrontLens)
-        faceDetector.listener = object : FaceAnalyzer.Listener {
-            override fun onFacesDetected(faceBounds: List<RectF>) {
-                faceBoundsOverlay.post { faceBoundsOverlay.drawFaceBounds(faceBounds) }
-            }
-            override fun onError(exception: Exception) {
-                Log.d(TAG, "Face detection error", exception)
-            }
-        }
-        return faceDetector
-    }
-     */
-    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
-        ContextCompat.checkSelfPermission(
-            baseContext, it) == PackageManager.PERMISSION_GRANTED
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<String>, grantResults:
-        IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_CODE_PERMISSIONS) {
-            if (allPermissionsGranted()) {
-                startCamera()
-            } else {
-                Toast.makeText(this,
-                    "Permissions not granted by the user.",
-                    Toast.LENGTH_SHORT).show()
-                finish()
-            }
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        cameraExecutor.shutdown()
-    }
-
-    companion object {
-        private const val TAG = "CameraXApp"
-        private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
-        private const val REQUEST_CODE_PERMISSIONS = 10
-        private val REQUIRED_PERMISSIONS =
-            mutableListOf (
-                Manifest.permission.CAMERA,
-                Manifest.permission.RECORD_AUDIO
-            ).apply {
-                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-                    add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                }
-            }.toTypedArray()
-    }
-}
-
-class Draw(context: Context?, private var rect: Rect, private var text: String, private var _scaleX: Float, private var _scaleY: Float) : View(context) {
-
-    private lateinit var paint: Paint
-    private lateinit var textPaint: Paint
-
-    init {
-        init()
-    }
-
-    private fun init() {
-        paint = Paint()
-        paint.color = Color.RED
-        paint.strokeWidth = 20f
-        paint.style = Paint.Style.STROKE
-
-        textPaint = Paint()
-        textPaint.color = Color.RED
-        textPaint.style = Paint.Style.FILL
-        textPaint.textSize = 80f
-    }
-
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-//        canvas.drawText(text, rect.centerX().toFloat(), rect.centerY().toFloat(), textPaint)
-//        canvas.drawRect(( rect.left.toFloat()*_scaleX)-50, rect.top.toFloat()*_scaleY - 50, (rect.right.toFloat()*_scaleX)+50, rect.bottom.toFloat()*_scaleY + 50, paint)
-        canvas.drawRect( (50).toFloat(), (150).toFloat(), (width-50).toFloat(), (150+(width-100)).toFloat(), paint)
-    }
-}
-
-/*
-private class FaceAnalyzer(private val listener: FaceListener) : ImageAnalysis.Analyzer {
-    companion object {
-        var S: String = ""
-    }
-    override fun analyze(imageProxy: ImageProxy) {
-        val mediaImage = imageProxy.image
-        if (mediaImage != null) {
-            val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-            // Pass image to an ML Kit Vision API
-            // ...
-            /*
-            val highAccuracyOpts = FaceDetectorOptions.Builder()
-                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
-                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
-                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
-                .build()
-            */
-            val rotation = imageProxy.imageInfo.rotationDegrees
-            val inputImage = InputImage.fromMediaImage(mediaImage, rotation)
-            val detector = FaceDetection.getClient();
-            val result = detector.process(image)
-                .addOnSuccessListener { faces: List<Face> ->
-                    //val listener = listener ?: return@addOnSuccessListener
-                    // In order to correctly display the face bounds, the orientation of the analyzed
-                    // image and that of the viewfinder have to match. Which is why the dimensions of
-                    // the analyzed image are reversed if its rotation information is 90 or 270.
-                    //val reverseDimens = rotation == 90 || rotation == 270
-                    //val width = if (reverseDimens) imageProxy.height else imageProxy.width
-                    //val height = if (reverseDimens) imageProxy.width else imageProxy.height
-                    //val faceBounds = faces.map { it.boundingBox.transform(width, height) }
-                    //listener.onFacesDetected(faceBounds)
-                    for(face in faces) {
-                        val bounds = face.boundingBox
-                        val rotY = face.headEulerAngleY // Head is rotated to the right rotY degrees
-                        val rotZ = face.headEulerAngleZ // Head is tilted sideways rotZ degrees
-                        S = "Face Detected"
-                        Log.v("TESTING", "Face at ${bounds.top} ${bounds.left} ${bounds.bottom} ${bounds.right}")
                     }
+//                    Logger.log( "Found ${doc.listFiles().size} images in $name directory" )
                 }
-                .addOnFailureListener { }
-                .addOnCompleteListener { imageProxy.close() }
+                else {
+                    errorFound = true
+//                    Logger.log( "The selected folder should contain only directories. Make sure that the file structure is " + "as described in the README of the project and then restart the app." )
+                }
+            }
+        }
+        else {
+            errorFound = true
+//            Logger.log( "The selected folder doesn't contain any directories. Make sure that the file structure is " + "as described in the README of the project and then restart the app." )
+        }
+        if ( !errorFound ) {
+            fileReader.run( images , fileReaderCallback )
+//            Logger.log( "Detecting faces in ${images.size} images ..." )
+        }
+        else {
+            val alertDialog = AlertDialog.Builder( this ).apply {
+                setTitle( "Error while parsing directory")
+                setMessage( "There were some errors while parsing the directory. Please see the log below. Make sure that the file structure is " +
+                        "as described in the README of the project and then tap RESELECT" )
+                setCancelable( false )
+                setPositiveButton( "RESELECT") { dialog, which ->
+                    dialog.dismiss()
+                    launchChooseDirectoryIntent()
+                }
+                setNegativeButton( "CANCEL" ){ dialog , which ->
+                    dialog.dismiss()
+                    finish()
+                }
+                create()
+            }
+            alertDialog.show()
         }
     }
-    /*
-    internal interface Listener {
-        /** Callback that receives face bounds that can be drawn on top of the viewfinder.  */
-        fun onFacesDetected(faceBounds: List<RectF>)
-        /** Invoked when an error is encounter during face detection.  */
-        fun onError(exception: Exception)
-    }
-     */
-}
-*/
 
 
-/*
-class QrAnalyzer(private val listener: QrListener) : ImageAnalysis.Analyzer {
-    companion object {
-        var S: String = ""
+    // Get the image as a Bitmap from given Uri and fix the rotation using the Exif interface
+    // Source -> https://stackoverflow.com/questions/14066038/why-does-an-image-captured-using-camera-intent-gets-rotated-on-some-devices-on-a
+    private fun getFixedBitmap( imageFileUri : Uri ) : Bitmap {
+        var imageBitmap = BitmapUtils.getBitmapFromUri( contentResolver , imageFileUri )
+        val exifInterface = ExifInterface( contentResolver.openInputStream( imageFileUri )!! )
+        imageBitmap =
+            when (exifInterface.getAttributeInt( ExifInterface.TAG_ORIENTATION ,
+                ExifInterface.ORIENTATION_UNDEFINED )) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> BitmapUtils.rotateBitmap( imageBitmap , 90f )
+                ExifInterface.ORIENTATION_ROTATE_180 -> BitmapUtils.rotateBitmap( imageBitmap , 180f )
+                ExifInterface.ORIENTATION_ROTATE_270 -> BitmapUtils.rotateBitmap( imageBitmap , 270f )
+                else -> imageBitmap
+            }
+        return imageBitmap
     }
-    private fun ByteBuffer.toByteArray(): ByteArray {
-        rewind()    // Rewind the buffer to zero
-        val data = ByteArray(remaining())
-        get(data)   // Copy the buffer into a byte array
-        return data // Return the byte array
-    }
-    @SuppressLint("UnsafeExperimentalUsageError")
-    override fun analyze(image: ImageProxy) {
-        val mediaImage = image.image
-        if (mediaImage != null) {
-            val img = InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
-            // Pass image to an ML Kit Vision API
-            // ...
-            val options = BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(
-                    Barcode.FORMAT_ALL_FORMATS
-                )
-                .build()
-            val scanner = BarcodeScanning.getClient(options)
-            val result = scanner.process(img)
-                .addOnSuccessListener { barcodes ->
-                    // Task completed successfully
-                    // [START_EXCLUDE]
-                    // [START get_barcodes]
-                    for (barcode in barcodes) {
-                        val bounds = barcode.boundingBox
-                        val corners = barcode.cornerPoints
-                        val rawValue = barcode.rawValue
-                        val valueType = barcode.valueType
-                        // See API reference for complete list of supported types
-                        Log.v("TESTING: ", "Barcode detected: $rawValue")
-                        S = rawValue.toString()
-                    }
-                }
-                .addOnFailureListener { }
-                .addOnCompleteListener { image.close() }
+
+
+    // ---------------------------------------------- //
+
+
+    private val fileReaderCallback = object : FileReader.ProcessCallback {
+        override fun onProcessCompleted(data: ArrayList<Pair<String, FloatArray>>, numImagesWithNoFaces: Int) {
+            frameAnalyser.faceList = data
+            saveSerializedImageData( data )
+//            Logger.log( "Images parsed. Found $numImagesWithNoFaces images with no faces." )
         }
     }
+
+
+    private fun saveSerializedImageData(data : ArrayList<Pair<String,FloatArray>> ) {
+        val serializedDataFile = File( filesDir , SERIALIZED_DATA_FILENAME )
+        ObjectOutputStream( FileOutputStream( serializedDataFile )  ).apply {
+            writeObject( data )
+            flush()
+            close()
+        }
+        sharedPreferences.edit().putBoolean( SHARED_PREF_IS_DATA_STORED_KEY , true ).apply()
+    }
+
+
+    private fun loadSerializedImageData() : ArrayList<Pair<String,FloatArray>> {
+        val serializedDataFile = File( filesDir , SERIALIZED_DATA_FILENAME )
+        val objectInputStream = ObjectInputStream( FileInputStream( serializedDataFile ) )
+        val data = objectInputStream.readObject() as ArrayList<Pair<String,FloatArray>>
+        objectInputStream.close()
+        return data
+    }
+
+
 }
- */

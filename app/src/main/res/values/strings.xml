@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">AttendanceUsingFaceRecognition</string>
+    <string name="app_name">EzyAttendance</string>
     <string-array name="semester">
         <item>1</item>
         <item>2</item>
