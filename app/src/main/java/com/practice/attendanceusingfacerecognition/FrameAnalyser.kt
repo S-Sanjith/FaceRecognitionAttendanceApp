@@ -166,7 +166,13 @@ class FrameAnalyser( private var context: Context ,
                                 names[ avgScores.indexOf( avgScores.minOrNull()!! ) ]
                             }
                         }
-                        Logger.log( "Person identified as $bestScoreUserName" )
+
+                        if(bestScoreUserName!="Unknown") {
+                            CameraActivity.names.add(bestScoreUserName)
+                            CameraActivity.names_all[bestScoreUserName] = "present"
+                        }
+
+//                        Logger.log( "Person identified as $bestScoreUserName" )
                         predictions.add(
                             Prediction(
                                 face.boundingBox,

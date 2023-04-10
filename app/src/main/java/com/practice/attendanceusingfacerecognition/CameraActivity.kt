@@ -32,12 +32,16 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.LifecycleOwner
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
 import com.practice.attendanceusingfacerecognition.model.FaceNetModel
 import com.practice.attendanceusingfacerecognition.model.Models
 import com.practice.attendanceusingfacerecognition.FrameAnalyser
 import com.practice.attendanceusingfacerecognition.databinding.ActivityCameraBinding
 import java.io.*
+import java.util.*
 import java.util.concurrent.Executors
+import kotlin.collections.ArrayList
 
 
 class CameraActivity : AppCompatActivity() {
@@ -50,6 +54,7 @@ class CameraActivity : AppCompatActivity() {
     // Shared Pref key to check if the data was stored.
     private val SHARED_PREF_IS_DATA_STORED_KEY = "is_data_stored"
 
+    private lateinit var database : DatabaseReference
     private lateinit var activityMainBinding : ActivityCameraBinding
     private lateinit var previewView : PreviewView
     private lateinit var frameAnalyser  : FrameAnalyser
@@ -61,14 +66,11 @@ class CameraActivity : AppCompatActivity() {
     // <----------------------- User controls --------------------------->
 
     // Use the device's GPU to perform faster computations.
-    // Refer https://www.tensorflow.org/lite/performance/gpu
     private val useGpu = true
 
     // Use XNNPack to accelerate inference.
-    // Refer https://blog.tensorflow.org/2020/07/accelerating-tensorflow-lite-xnnpack-integration.html
     private val useXNNPack = true
 
-    // You may the change the models here.
     // Use the model configs in Models.kt
     // Default is Models.FACENET ; Quantized models are faster
     private val modelInfo = Models.FACENET
@@ -78,19 +80,17 @@ class CameraActivity : AppCompatActivity() {
 
     companion object {
 
-        lateinit var logTextView : TextView
+//        lateinit var logTextView : TextView
         var names: ArrayList<String> = ArrayList()
+        var names_all = mutableMapOf<String,String>()
 
-        fun setMessage( message : String ) {
-            logTextView.text = message
-        }
+//        fun setMessage( message : String ) {
+//            logTextView.text = message
+//        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Remove the status bar to have a full screen experience
-        // See this answer on SO -> https://stackoverflow.com/a/68152688/10878733
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.decorView.windowInsetsController!!
                 .hide( WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
@@ -98,13 +98,13 @@ class CameraActivity : AppCompatActivity() {
         else {
             window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN
         }
-        Toast.makeText(this, "", Toast.LENGTH_SHORT).show()
+//        Toast.makeText(this, "", Toast.LENGTH_SHORT).show()
         activityMainBinding = ActivityCameraBinding.inflate( layoutInflater )
         setContentView( activityMainBinding.root )
 
         previewView = activityMainBinding.previewView
-        logTextView = activityMainBinding.logTextview
-        logTextView.movementMethod = ScrollingMovementMethod()
+//        logTextView = activityMainBinding.logTextview
+//        logTextView.movementMethod = ScrollingMovementMethod()
         // Necessary to keep the Overlay above the PreviewView so that the boxes are visible.
         val boundingBoxOverlay = activityMainBinding.bboxOverlay
         boundingBoxOverlay.setWillNotDraw( false )
@@ -121,14 +121,62 @@ class CameraActivity : AppCompatActivity() {
 //            val attendance = AttendanceStatus("Hi")
 //            val json = gson?.toJson(attendance)
 //            intent.putExtra("USER",names)
+            val classDetails = intent.getStringExtra("classDetails")
+            val calender = Calendar.getInstance()
+            val date = "${calender.get(Calendar.YEAR)}-${calender.get(Calendar.MONTH)+1}-${calender.get(Calendar.DAY_OF_MONTH)}"
+            for(name in names_all.keys) {
+                val usn = "1BM20CS100"
+                var count: Any? = "0"
+                database = FirebaseDatabase.getInstance("https://attendanceusingfacerecog-52ca1-default-rtdb.asia-southeast1.firebasedatabase.app").getReference("Students")
+                val student = Student(usn, name, "${names_all[name]}")
+
+                if (student != null) {
+                    database.child(date).child(name).setValue(student).addOnSuccessListener {
+//                        Toast.makeText(this, "Successfully saved", Toast.LENGTH_SHORT).show()
+                    }.addOnFailureListener {
+                        Toast.makeText(this, "Failure", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+
+
+
+
+            }
+            for(name in names) {
+                database =
+                    FirebaseDatabase.getInstance("https://attendanceusingfacerecog-52ca1-default-rtdb.asia-southeast1.firebasedatabase.app")
+                        .getReference("Status")
+                database.child(name).get().addOnSuccessListener {
+                    if (it.exists()) {
+//                Toast.makeText(this,"${it.child("daysCount").value}", Toast.LENGTH_SHORT).show()
+
+                        var count = it.child("daysCount").value
+                        var c = count.toString().toInt()
+                        c += 1
+                        count = c.toString()
+                        writeCount(name, count)
+//                    Toast.makeText(this,"${count.toString()}", Toast.LENGTH_SHORT).show()
+
+//                val name = it.child("name").value
+//                val fetchedpassword = it.child("password").value
+//                val mail = it.child("mail").value
+//                val dept = it.child("dept").value
+
+                    }
+                }.addOnFailureListener{
+                    Toast.makeText(this,"Failed to validate the user.", Toast.LENGTH_SHORT).show()
+                }
+            }
+            names_all.clear()
             startActivity(intent)
 
         }
 
 
-        // We'll only require the CAMERA permission from the user.
+        // Require the CAMERA permission from the user.
         // For scoped storage, particularly for accessing documents, we won't require WRITE_EXTERNAL_STORAGE or
-        // READ_EXTERNAL_STORAGE permissions. See https://developer.android.com/training/data-storage
+        // READ_EXTERNAL_STORAGE permissions.
         if ( ActivityCompat.checkSelfPermission( this , Manifest.permission.CAMERA ) != PackageManager.PERMISSION_GRANTED ) {
             requestCameraPermission()
         }
@@ -143,22 +191,25 @@ class CameraActivity : AppCompatActivity() {
             showSelectDirectoryDialog()
         }
         else {
-            val alertDialog = AlertDialog.Builder( this ).apply {
-                setTitle( "Serialized Data")
-                setMessage( "Existing image data was found on this device. Would you like to load it?" )
-                setCancelable( false )
-                setNegativeButton( "LOAD") { dialog, which ->
-                    dialog.dismiss()
+//            val alertDialog = AlertDialog.Builder( this ).apply {
+//                setTitle( "Serialized Data")
+//                setMessage( "Existing image data was found on this device. Would you like to load it?" )
+//                setCancelable( false )
+//                setNegativeButton( "LOAD") { dialog, which ->
+//                    dialog.dismiss()
                     frameAnalyser.faceList = loadSerializedImageData()
-//                    Logger.log( "Serialized data loaded.")
-                }
-                setPositiveButton( "RESCAN") { dialog, which ->
-                    dialog.dismiss()
-                    launchChooseDirectoryIntent()
-                }
-                create()
+            for(x in frameAnalyser.faceList) {
+                names_all[x.first] = "absent"
             }
-            alertDialog.show()
+//                    Logger.log( "Serialized data loaded.")
+//                }
+//                setPositiveButton( "RESCAN") { dialog, which ->
+//                    dialog.dismiss()
+//                    launchChooseDirectoryIntent()
+//                }
+//                create()
+//            }
+//            alertDialog.show()
         }
 
     }
@@ -218,6 +269,25 @@ class CameraActivity : AppCompatActivity() {
             alertDialog.show()
         }
 
+    }
+
+    private fun writeCount(Username: String, count: Any?) {
+        database = FirebaseDatabase.getInstance("https://attendanceusingfacerecog-52ca1-default-rtdb.asia-southeast1.firebasedatabase.app").getReference("Status")
+        val status = Status(count as String?)
+
+//        if (student != null) {
+//            database.child(date).child(name).setValue(student).addOnSuccessListener {
+////                        Toast.makeText(this, "Successfully saved", Toast.LENGTH_SHORT).show()
+//            }.addOnFailureListener {
+//                Toast.makeText(this, "Failure", Toast.LENGTH_SHORT).show()
+//            }
+//        }
+
+        database.child(Username).setValue(status).addOnSuccessListener {
+            Toast.makeText(this, "Successfully saved", Toast.LENGTH_SHORT).show()
+        }.addOnFailureListener {
+            Toast.makeText(this, "Failure", Toast.LENGTH_SHORT).show()
+        }
     }
 
 

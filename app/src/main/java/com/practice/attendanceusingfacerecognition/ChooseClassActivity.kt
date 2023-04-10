@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Button
+import android.widget.Toast
 
 class ChooseClassActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,9 +39,23 @@ class ChooseClassActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.takeAttendanceButton).setOnClickListener {
             Intent(this, CameraActivity::class.java).also {
+                val sem = findViewById<AutoCompleteTextView>(R.id.autoCompleteTextView).text.toString()
+                val sec = findViewById<AutoCompleteTextView>(R.id.autoCompleteTextView2).text.toString()
+                val course = findViewById<AutoCompleteTextView>(R.id.autoCompleteTextView3).text.toString()
+                it.putExtra("classDetails", "$sem$sec$course")
+                Toast.makeText(this, "$sem$sec$course", Toast.LENGTH_SHORT).show()
                 startActivity(it)
             }
         }
-
+        findViewById<Button>(R.id.viewAttendanceButton).setOnClickListener {
+            Intent(this, ViewAttendanceActivity::class.java).also {
+                val sem = findViewById<AutoCompleteTextView>(R.id.autoCompleteTextView).text.toString()
+                val sec = findViewById<AutoCompleteTextView>(R.id.autoCompleteTextView2).text.toString()
+                val course = findViewById<AutoCompleteTextView>(R.id.autoCompleteTextView3).text.toString()
+                it.putExtra("classDetails", "$sem$sec$course")
+                Toast.makeText(this, "$sem$sec$course", Toast.LENGTH_SHORT).show()
+                startActivity(it)
+            }
+        }
     }
 }

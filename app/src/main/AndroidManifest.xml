@@ -21,6 +21,9 @@
         android:theme="@style/Theme.AttendanceUsingFaceRecognition"
         tools:targetApi="31">
         <activity
+            android:name=".ViewAttendanceActivity"
+            android:exported="false" />
+        <activity
             android:name=".SecondActivity"
             android:exported="false">
             <meta-data

@@ -22,8 +22,8 @@
         android:id="@+id/submitBtn"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="400dp"
-        android:text="View Attendance"
+        android:layout_marginTop="500dp"
+        android:text="submit"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -39,20 +39,20 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <TextView
-        android:id="@+id/log_textview"
-        android:layout_width="0dp"
-        android:layout_height="200dp"
-        android:background="@drawable/textview_background"
-        android:maxHeight="36dp"
-        android:text=""
-        android:padding="16dp"
-        android:gravity="bottom"
-        android:textColor="@android:color/white"
-        android:textSize="12sp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+<!--    <TextView-->
+<!--        android:id="@+id/log_textview"-->
+<!--        android:layout_width="0dp"-->
+<!--        android:layout_height="200dp"-->
+<!--        android:background="@drawable/textview_background"-->
+<!--        android:maxHeight="36dp"-->
+<!--        android:text=""-->
+<!--        android:padding="16dp"-->
+<!--        android:gravity="bottom"-->
+<!--        android:textColor="@android:color/white"-->
+<!--        android:textSize="12sp"-->
+<!--        app:layout_constraintBottom_toBottomOf="parent"-->
+<!--        app:layout_constraintEnd_toEndOf="parent"-->
+<!--        app:layout_constraintStart_toStartOf="parent" />-->
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>
